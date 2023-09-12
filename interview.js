@@ -44,17 +44,30 @@ const fakeRequests = [
       speech: [] // Add all the speech URLs to this array in the same order as the translations
     }
 
-    // TODO: Fetch the translations for each from the Cache service to see if they are available.
+    for (const text of request) {
+      // the prefix is to avoid collisions with the cache when the translation is not found (translation returns the same string)
+      const cacheItem = await cache.getItem(`translation_${text}`);
+      // if we found the translation in the cache, we don't need to call the translation API
+      if(cacheItem) {
+        response.translations.push(cacheItem);
+        // assuming this phrase was stored in the cache, we can use it to get the speech URL
+        const cacheURL = await cache.getItem(`speech_${cacheItem}`);
+        response.speech.push(cacheURL);
+      } else {
+        // if the translation is not in the cache, we need to call the translation API
+        const translatedText = await translation.translate(text);
+        // we store the translation in the cache
+        await cache.setItem(`translation_${text}`, translatedText);
+        response.translations.push(translatedText);
+        // we get the speech URL
+        const speechStream = await speech.speak(translatedText);
+        const storageURL = await storage.pipe(speechStream);
+        // we store the speech URL in the cache
+        await cache.setItem(`speech_${translatedText}`, storageURL);
+        response.speech.push(storageURL);
+      }
+    }
 
-    // TODO: If translations are not available, use the Translation service. If not in the cache, store the response to the cache.
-
-    // TODO: Fetch an URL from the cache for an already created speech.
-
-    // TODO: If not available, fetch a speech file from Speech using the _translated_ string (not the original English version)
-
-    // TODO: Send the binary data from Speech to Storage to get an URL for each binary
-
-    // TODO: Once you are ready with one request, send the response using respond:
     respond(response);
   }
 })();
